@@ -23,6 +23,27 @@ class SnafflerResult:
 		self.rule = rule
 		self.data = data
 
+	def to_dict(self):
+		temp = {
+			'otype': self.otype,
+			'rule': self.rule.triage.name,
+			'rule_name': self.rule.ruleName,
+			'size': 0,
+			'size_human': '0',
+			'last_write_time': '',
+			'unc_path': self.smbobj.unc_path if self.smbobj is not None else '',
+			'data': ''
+		}
+
+		if self.otype == 'file':
+			temp['size'] = self.smbobj.size if self.smbobj is not None else 0
+			temp['size_human'] = sizeof_fmt(self.smbobj.size) if self.smbobj is not None else '0'
+			temp['last_write_time'] = self.smbobj.last_write_time.isoformat() if self.smbobj is not None else ''
+			temp['unc_path'] = self.smbobj.unc_path if self.smbobj is not None else ''
+			temp['data'] = self.data_to_line() if self.data is not None else ''
+		
+		return temp
+
 	def get_name(self):
 		return 'Snaffler'
 
