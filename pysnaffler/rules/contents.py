@@ -1,13 +1,13 @@
 import codecs
 from pysnaffler.rules.rule import SnaffleRule
 from pysnaffler.rules.constants import EnumerationScope, MatchAction, MatchLoc, MatchListType, Triage
-from typing import List
+from typing import List, Union
 
 class SnafflerContentsEnumerationRule(SnaffleRule):
 	def __init__(self, enumerationScope:EnumerationScope, ruleName:str, matchAction:MatchAction, relayTargets:List[str], description:str, matchLocation:MatchLoc, wordListType:MatchListType, matchLength:int, wordList:List[str], triage:Triage):
 		super().__init__(enumerationScope, ruleName, matchAction, relayTargets, description, matchLocation, wordListType, matchLength, wordList, triage)
 	
-	def match(self, data, chars_before = 0, chars_after = 0):
+	def match(self, data:Union[str, bytes], chars_before:int = 100, chars_after:int = 100):
 		matches = []
 		for rex in self.wordList:
 			for match in rex.finditer(data):
@@ -19,7 +19,7 @@ class SnafflerContentsEnumerationRule(SnaffleRule):
 				matches.append(text)
 		return '\r\n'.join(matches)
 
-	def open_and_match(self, filename, chars_before, chars_after):
+	def open_and_match(self, filename:str, chars_before:int = 100, chars_after:int = 100):
 		try:
 			if self.matchLocation == MatchLoc.FileContentAsString:
 				with codecs.open(filename, 'r', 'latin-1') as f:

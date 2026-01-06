@@ -5,7 +5,8 @@ from pathlib import PureWindowsPath
 from glob import glob
 from aiosmb.commons.interfaces.file import SMBFile
 from typing import Union
-import hashlib
+import io
+from functools import lru_cache
 
 class SnafflerRuleSet:
 	def __init__(self):
@@ -161,6 +162,15 @@ class SnafflerRuleSet:
 		ruleset.load_rule_file(filepath)
 		return ruleset
 	
+	@lru_cache(maxsize=1024)
+	def _unroll_relays_cached(self, rule_names: tuple[str, ...]):
+		rules = [self.allRules[name] for name in rule_names]
+		return self.unroll_relays(rules)
+	
+	def unroll_relays_fast(self, rules: list[SnaffleRule]) -> list[SnaffleRule]:
+		rule_names = tuple(rule.ruleName for rule in rules)
+		return self._unroll_relays_cached(rule_names)
+			
 	def unroll_relays(self, rules:List[SnaffleRule]) -> List[SnaffleRule]:
 		lookupkey = ''
 		for rule in rules:
@@ -187,7 +197,7 @@ class SnafflerRuleSet:
 		return finalrules.values()
 
 	async def parse_file(self, filepath, rules:List[SnaffleRule], fsize:int = 0, chars_before_match:int = 0, chars_after_match:int = 0):
-		finalrules = self.unroll_relays(rules)
+		finalrules = self.unroll_relays_fast(rules)
 		for rule in finalrules:
 			if rule.enumerationScope == EnumerationScope.ContentsEnumeration:
 				res, err = rule.open_and_match(filepath, chars_before_match, chars_after_match)
@@ -206,6 +216,23 @@ class SnafflerRuleSet:
 				err = None
 				res = ''
 				yield res, rule, None
+	
+	async def parse_file_data(self, filedata:io.BytesIO or str, rules:List[SnaffleRule], chars_before_match:int = 0, chars_after_match:int = 0):
+		# this should be called when we have the file data in memory
+		# will only check rules that are of type ContentsEnumeration
+		finalrules = self.unroll_relays_fast(rules)
+		for rule in finalrules:
+			if rule.enumerationScope == EnumerationScope.ContentsEnumeration:
+				if rule.matchLocation == MatchLoc.FileContentAsString:
+					data = filedata.getvalue().decode("latin-1")
+				elif rule.matchLocation == MatchLoc.FileContentAsBytes:
+					data = filedata.getvalue()
+				else:
+					raise ValueError('ERROR: Unknown match location: %s' % rule.matchLocation)
+				result = rule.match(data, chars_before_match, chars_after_match)
+				if result is not None:
+					yield result, rule
+			
 
 if __name__ == '__main__':
 	ruleset = SnafflerRuleSet.load_default_ruleset()
